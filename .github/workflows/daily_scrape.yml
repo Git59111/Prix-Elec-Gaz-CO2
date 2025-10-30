@@ -18,21 +18,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 📦 Install dependencies (including Selenium + Chrome)
+      - name: 📦 Install dependencies (Selenium + undetected-chromedriver)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install selenium beautifulsoup4 pandas
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-          echo "✅ Chrome et Selenium installés."
+          pip install selenium undetected-chromedriver beautifulsoup4 pandas
+          echo "✅ Dépendances installées (Selenium + undetected-chromedriver)."
 
       - name: ▶️ Run EPEX + Gaz + CO2 scrapers
         run: |
           echo "📥 Lancement des scrapers..."
-          python fetch_gaz_co2_weekend.py  # <--- NOUVEAU
-          python fetch_gaz_co2_html.py
-          python epex_scraper.py
+          python fetch_gaz_co2_weekend.py || echo "⚠️ fetch_gaz_co2_weekend.py a été ignoré"
+          python fetch_gaz_co2_html.py || echo "⚠️ fetch_gaz_co2_html.py a été ignoré"
+          python epex_scraper.py || echo "⚠️ epex_scraper.py a échoué"
           echo "📁 Contenu du dossier après exécution :"
           ls -lha archives/html || echo "Pas de dossier HTML"
           ls -lha archives/csv || echo "Pas de dossier CSV"
@@ -48,4 +46,3 @@ jobs:
           git add archives/html_co2/*.html || echo "No CO2 HTML to add"
           git commit -m "📄 Archives HTML/CSV (elec + gaz + CO2) for $(date +'%Y-%m-%d')" || echo "Nothing to commit"
           git push origin main || echo "⚠️ Nothing new to push"
-
