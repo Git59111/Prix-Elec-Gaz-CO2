@@ -17,7 +17,7 @@ def fetch_epex_prices():
     os.makedirs("archives/html", exist_ok=True)
     os.makedirs("archives/csv", exist_ok=True)
 
-    # ⚙️ Options Chrome (headless)
+    # ⚙️ Options Chrome
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -28,10 +28,14 @@ def fetch_epex_prices():
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
     )
 
-    print("🌐 Lancement de Chrome via undetected-chromedriver...")
-    driver = uc.Chrome(options=options)
-    driver.get("https://www.epexspot.com/en/market-results")
+    print("🌐 Lancement de Chrome via undetected-chromedriver (version 140)...")
+    try:
+        driver = uc.Chrome(version_main=140, options=options)
+    except Exception as e:
+        print(f"❌ Erreur au lancement de Chrome : {e}")
+        return
 
+    driver.get("https://www.epexspot.com/en/market-results")
     wait = WebDriverWait(driver, 25)
 
     # 1️⃣ Accepter le disclaimer s’il apparaît
@@ -111,6 +115,7 @@ def fetch_epex_prices():
 
 if __name__ == "__main__":
     fetch_epex_prices()
+
 
 
 '''
