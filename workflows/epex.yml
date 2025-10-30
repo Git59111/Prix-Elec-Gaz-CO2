@@ -1,0 +1,39 @@
+name: EPEX Scraper
+
+on:
+  workflow_dispatch:    # déclenchement manuel immédiat
+  push:                # ou à chaque push sur main
+    branches:
+      - main
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: pip install requests pandas beautifulsoup4
+
+      - name: Run EPEX scraper
+        run: python epex_scraper.py
+
+      - name: Send email if failure
+        if: failure()  # <-- déclenché uniquement si le script fait sys.exit(1)
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[ALERTE] EPEX Spot non disponible"
+          to: "ADRESSE MAIL"
+          body: "Le scraper EPEX Spot n’a pas pu récupérer la page. Vérifiez GitHub Actions."
+
+
+
