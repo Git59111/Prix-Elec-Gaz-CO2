@@ -1,9 +1,10 @@
 import datetime
 import os
-import sys
-import requests
 import pandas as pd
-import json
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
+import time
 
 def fetch_epex_prices():
     trading_date = datetime.date.today().strftime("%Y-%m-%d")
@@ -11,73 +12,63 @@ def fetch_epex_prices():
 
     os.makedirs("archives/html", exist_ok=True)
     os.makedirs("archives/csv", exist_ok=True)
-    os.makedirs("archives/json", exist_ok=True)
 
-    session = requests.Session()
+    # ⚙️ Chrome headless
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/128.0.0.0 Safari/537.36"
-        ),
-        "Referer": "https://www.epexspot.com/en/market-results",
-    }
+    print("🌐 Lancement de Chrome (headless)...")
+    driver = webdriver.Chrome(options=options)
+    driver.get("https://www.epexspot.com/en/market-results")
 
-    # Étape 1️⃣ : accéder à la page principale pour obtenir les cookies
-    print("🌐 Initialisation de la session EPEX...")
-    r1 = session.get("https://www.epexspot.com/en/market-results", headers=headers)
-    if r1.status_code != 200:
-        print("❌ Impossible d’accéder à la page d’accueil.")
-        sys.exit(1)
+    # 1️⃣ Accepter le disclaimer
+    try:
+        button = driver.find_element("id", "edit-acceptationbutton")
+        button.click()
+        print("✅ Disclaimer accepté.")
+    except Exception:
+        print("⚠️ Bouton d’acceptation introuvable, peut-être déjà validé.")
 
-    # Étape 2️⃣ : simuler le clic sur le bouton “Accept conditions”
-    payload = {
-        "form_id": "data_disclaimer_acceptation_form",
-        "op": "Access to EPEX Spot website "
-    }
+    time.sleep(5)  # attendre le chargement dynamique
 
-    r2 = session.post("https://www.epexspot.com/en/market-results", data=payload, headers=headers)
-    if r2.status_code != 200:
-        print("❌ Échec de la validation du disclaimer.")
-        sys.exit(1)
-
-    print("✅ Disclaimer accepté, session authentifiée.")
-
-    # Étape 3️⃣ : requête vers l’API JSON (avec cookies de session)
-    api_url = (
-        "https://www.epexspot.com/marketdata/auction-table?"
-        f"modality=Auction&sub_modality=DayAhead&auction=MRC"
-        f"&market_area=FR&delivery_date={delivery_date}&product=60"
+    # 2️⃣ Filtrer sur la France et le Day-Ahead
+    driver.execute_script(
+        "document.querySelector('input#edit-filters-market-area').value = 'FR';"
+        "document.querySelector('input#edit-filters-delivery-date').value = arguments[0];"
+        "document.querySelector('.btn.btn-primary-outline.btn-full.btn-see-results').click();",
+        delivery_date,
     )
 
-    print(f"🔗 URL API utilisée : {api_url}")
+    time.sleep(8)  # attendre le tableau
 
-    r3 = session.get(api_url, headers=headers)
-    print(f"📶 Statut HTTP : {r3.status_code}")
+    html = driver.page_source
+    html_path = f"archives/html/epex_FR_{delivery_date}.html"
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"📄 Page enregistrée : {html_path}")
 
-    # Vérification du contenu
-    if not r3.text.strip().startswith("{"):
-        print("⚠️ La réponse n’est pas du JSON, voici l’aperçu :")
-        print(r3.text[:300])
-        sys.exit(1)
+    # 3️⃣ Parser avec BeautifulSoup
+    soup = BeautifulSoup(html, "html.parser")
+    table = soup.find("table")
+    if not table:
+        print("❌ Tableau introuvable (JS non chargé ?)")
+        driver.quit()
+        return
 
-    data = r3.json()
+    rows = []
+    for tr in table.find_all("tr"):
+        cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
+        if cells:
+            rows.append(cells)
 
-    # 💾 Sauvegarde JSON
-    json_path = f"archives/json/epex_FR_{delivery_date}.json"
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"📄 Données JSON archivées : {json_path}")
-
-    if "data" not in data or not data["data"]:
-        print("⚠️ Aucune donnée dans la réponse JSON.")
-        sys.exit(1)
-
-    df = pd.DataFrame(data["data"])
+    df = pd.DataFrame(rows[1:], columns=rows[0])
     csv_path = f"archives/csv/epex_FR_{delivery_date}.csv"
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
     print(f"📊 CSV enregistré : {csv_path}")
+
+    driver.quit()
 
 if __name__ == "__main__":
     fetch_epex_prices()
