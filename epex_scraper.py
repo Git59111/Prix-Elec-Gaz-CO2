@@ -1,10 +1,13 @@
 import datetime
 import os
 import pandas as pd
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
-import time
 
 def fetch_epex_prices():
     trading_date = datetime.date.today().strftime("%Y-%m-%d")
@@ -13,7 +16,6 @@ def fetch_epex_prices():
     os.makedirs("archives/html", exist_ok=True)
     os.makedirs("archives/csv", exist_ok=True)
 
-    # ⚙️ Chrome headless
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -23,37 +25,52 @@ def fetch_epex_prices():
     driver = webdriver.Chrome(options=options)
     driver.get("https://www.epexspot.com/en/market-results")
 
-    # 1️⃣ Accepter le disclaimer
+    wait = WebDriverWait(driver, 20)
+
+    # 1️⃣ Accepter le disclaimer si présent
     try:
-        button = driver.find_element("id", "edit-acceptationbutton")
+        button = wait.until(EC.element_to_be_clickable((By.ID, "edit-acceptationbutton")))
         button.click()
         print("✅ Disclaimer accepté.")
     except Exception:
-        print("⚠️ Bouton d’acceptation introuvable, peut-être déjà validé.")
+        print("⚠️ Bouton d’acceptation non trouvé (déjà validé ?).")
 
-    time.sleep(5)  # attendre le chargement dynamique
+    # 2️⃣ Attendre que le champ de date apparaisse (preuve que les filtres sont chargés)
+    try:
+        wait.until(EC.presence_of_element_located((By.ID, "edit-filters-delivery-date")))
+        print("✅ Filtres chargés.")
+    except Exception:
+        print("❌ Les filtres n'ont pas pu être chargés.")
+        driver.quit()
+        return
 
-    # 2️⃣ Filtrer sur la France et le Day-Ahead
-    driver.execute_script(
-        "document.querySelector('input#edit-filters-market-area').value = 'FR';"
-        "document.querySelector('input#edit-filters-delivery-date').value = arguments[0];"
-        "document.querySelector('.btn.btn-primary-outline.btn-full.btn-see-results').click();",
-        delivery_date,
-    )
+    # 3️⃣ Renseigner la date et lancer les résultats via Selenium
+    try:
+        date_input = driver.find_element(By.ID, "edit-filters-delivery-date")
+        driver.execute_script("arguments[0].value = arguments[1];", date_input, f"{datetime.date.today().day} {datetime.date.today().strftime('%b. %Y')}")
+        print(f"📅 Date livrée : {delivery_date}")
 
-    time.sleep(8)  # attendre le tableau
+        see_button = driver.find_element(By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")
+        driver.execute_script("arguments[0].click();", see_button)
+        print("🔎 Lancement de la recherche des prix...")
+    except Exception as e:
+        print(f"❌ Erreur lors du clic sur le bouton See Results : {e}")
+        driver.quit()
+        return
 
+    # 4️⃣ Attente du chargement des résultats
+    time.sleep(10)
     html = driver.page_source
     html_path = f"archives/html/epex_FR_{delivery_date}.html"
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"📄 Page enregistrée : {html_path}")
 
-    # 3️⃣ Parser avec BeautifulSoup
+    # 5️⃣ Extraction du tableau
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
     if not table:
-        print("❌ Tableau introuvable (JS non chargé ?)")
+        print("❌ Aucun tableau trouvé après chargement.")
         driver.quit()
         return
 
@@ -72,6 +89,7 @@ def fetch_epex_prices():
 
 if __name__ == "__main__":
     fetch_epex_prices()
+
 
 
 
