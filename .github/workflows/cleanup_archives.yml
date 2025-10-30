@@ -1,0 +1,70 @@
+name: Cleanup Old Archives
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # tous les jours à 3h du matin
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Supprimer les fichiers archivés de plus de 30 jours
+      run: |
+        echo "🗑️ Nettoyage des archives"
+        today=$(date +%s)
+        deleted_any=false
+
+        # Liste des dossiers à traiter
+        for dir in archives/html archives/html_gaz archives/html_co2; do
+          echo "📂 Traitement du dossier $dir"
+          if [ ! -d "$dir" ]; then
+            echo "⚠️ Dossier $dir introuvable, on passe."
+            continue
+          fi
+
+          deleted_in_dir=false
+
+          for f in "$dir"/*.html; do
+            [ -e "$f" ] || continue
+            fname=$(basename "$f")
+
+            # extraire la date (ex: 2025-06-18)
+            fdate=$(echo "$fname" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}')
+            if [ -n "$fdate" ]; then
+              fsec=$(date -d "$fdate" +%s || true)
+              if [ -n "$fsec" ]; then
+                age=$(( (today - fsec) / 86400 ))
+                if [ $age -gt 30 ]; then
+                  echo "🗑️ Suppression $f (âge $age jours)"
+                  rm "$f"
+                  deleted_any=true
+                  deleted_in_dir=true
+                fi
+              fi
+            fi
+          done
+
+          if [ "$deleted_in_dir" = false ]; then
+            echo "✅ Tous les fichiers de $dir ont moins de 30 jours"
+          fi
+        done
+
+        if [ "$deleted_any" = false ]; then
+          echo "✅ Aucun fichier supprimé dans tous les dossiers (toutes les dates < 30 jours)"
+        fi
+
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "actions-user"
+        git config --global user.email "actions@github.com"
+        git add -u
+        if git commit -m "🗑️ Suppression des archives > 30 jours"; then
+          git push
+        else
+          echo "✅ Aucun fichier à supprimer"
+        fi
