@@ -59,34 +59,36 @@ def fetch_epex_prices():
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
     time.sleep(4)
 
-    # 4️⃣ Clic sur “See Results” pour charger les prix
+    # 4️⃣ Trouver et cliquer sur “See results” (nouvelle structure)
     try:
-        see_button = wait.until(
-            EC.element_to_be_clickable(
-                (By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")
-            )
-        )
-        driver.execute_script("arguments[0].click();", see_button)
-        print("🔎 Recherche des résultats lancée.")
+        # Certains boutons ont changé de nom — on cherche par texte
+        see_buttons = driver.find_elements(By.XPATH, "//button[contains(., 'See results') or contains(., 'Voir les résultats')]")
+        if see_buttons:
+            driver.execute_script("arguments[0].click();", see_buttons[0])
+            print("🔎 Clic sur 'See Results' réussi (via XPath).")
+        else:
+            print("⚠️ Aucun bouton 'See Results' trouvé, tentative alternative...")
+            driver.execute_script("""
+                const btn = [...document.querySelectorAll('button')].find(b => 
+                    b.textContent.includes('See results') || b.textContent.includes('Voir les résultats')
+                );
+                if (btn) btn.click();
+            """)
+            time.sleep(3)
     except Exception as e:
         print(f"❌ Impossible de cliquer sur See Results : {e}")
         driver.quit()
         return
 
-    # 5️⃣ Attendre que le tableau apparaisse
+    # 5️⃣ Attendre que le tableau apparaisse (ou forcer un délai)
     try:
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
         print("✅ Tableau détecté.")
     except Exception:
-        print("⚠️ Tableau non détecté après 20 secondes.")
-        html_path = f"archives/html/epex_FR_{delivery_date}_empty.html"
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        print(f"📄 Page enregistrée pour diagnostic : {html_path}")
-        driver.quit()
-        return
+        print("⚠️ Tableau non détecté après 20 secondes, délai forcé de 10s...")
+        time.sleep(10)
 
-    # 6️⃣ Sauvegarder le HTML
+    # 6️⃣ Sauvegarder le HTML (diagnostic même si vide)
     html = driver.page_source
     html_path = f"archives/html/epex_FR_{delivery_date}.html"
     with open(html_path, "w", encoding="utf-8") as f:
@@ -96,6 +98,11 @@ def fetch_epex_prices():
     # 7️⃣ Parser le tableau
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
+    if not table:
+        print("⚠️ Aucun tableau trouvé dans le HTML — page peut-être redirigée.")
+        driver.quit()
+        return
+
     rows = []
     for tr in table.find_all("tr"):
         cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
