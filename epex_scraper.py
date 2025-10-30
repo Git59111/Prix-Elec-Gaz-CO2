@@ -20,76 +20,91 @@ def fetch_epex_prices():
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+    )
 
     print("🌐 Lancement de Chrome (headless)...")
     driver = webdriver.Chrome(options=options)
     driver.get("https://www.epexspot.com/en/market-results")
 
-    wait = WebDriverWait(driver, 20)
+    wait = WebDriverWait(driver, 25)
 
-    # 1️⃣ Accepter le disclaimer si présent
+    # 1️⃣ Accepter le disclaimer s’il apparaît
     try:
         button = wait.until(EC.element_to_be_clickable((By.ID, "edit-acceptationbutton")))
         button.click()
         print("✅ Disclaimer accepté.")
     except Exception:
-        print("⚠️ Bouton d’acceptation non trouvé (déjà validé ?).")
+        print("⚠️ Aucun bouton d’acceptation détecté (peut-être déjà validé).")
 
-    # 2️⃣ Attendre que le champ de date apparaisse (preuve que les filtres sont chargés)
+    # 2️⃣ Attendre que les filtres soient disponibles
     try:
-        wait.until(EC.presence_of_element_located((By.ID, "edit-filters-delivery-date")))
-        print("✅ Filtres chargés.")
+        # Le conteneur principal des filtres
+        wait.until(EC.presence_of_element_located((By.ID, "md_filters_wrapper")))
+        print("✅ Bloc de filtres détecté.")
     except Exception:
-        print("❌ Les filtres n'ont pas pu être chargés.")
-        driver.quit()
-        return
+        print("❌ Bloc de filtres introuvable, tentative de rechargement...")
+        driver.refresh()
+        time.sleep(8)
 
-    # 3️⃣ Renseigner la date et lancer les résultats via Selenium
+    # 3️⃣ Scroll pour déclencher les scripts JS
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight / 2);")
+    time.sleep(4)
+
+    # 4️⃣ Clic sur “See Results” pour charger les prix
     try:
-        date_input = driver.find_element(By.ID, "edit-filters-delivery-date")
-        driver.execute_script("arguments[0].value = arguments[1];", date_input, f"{datetime.date.today().day} {datetime.date.today().strftime('%b. %Y')}")
-        print(f"📅 Date livrée : {delivery_date}")
-
-        see_button = driver.find_element(By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")
+        see_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")))
         driver.execute_script("arguments[0].click();", see_button)
-        print("🔎 Lancement de la recherche des prix...")
+        print("🔎 Recherche des résultats lancée.")
     except Exception as e:
-        print(f"❌ Erreur lors du clic sur le bouton See Results : {e}")
+        print(f"❌ Impossible de cliquer sur See Results : {e}")
         driver.quit()
         return
 
-    # 4️⃣ Attente du chargement des résultats
-    time.sleep(10)
+    # 5️⃣ Attendre que le tableau apparaisse
+    try:
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+        print("✅ Tableau détecté.")
+    except Exception:
+        print("⚠️ Tableau non détecté après 20 secondes.")
+        html_path = f"archives/html/epex_FR_{delivery_date}_empty.html"
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        print(f"📄 Page enregistrée pour diagnostic : {html_path}")
+        driver.quit()
+        return
+
+    # 6️⃣ Sauvegarder le HTML
     html = driver.page_source
     html_path = f"archives/html/epex_FR_{delivery_date}.html"
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"📄 Page enregistrée : {html_path}")
 
-    # 5️⃣ Extraction du tableau
+    # 7️⃣ Parser le tableau
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
-    if not table:
-        print("❌ Aucun tableau trouvé après chargement.")
-        driver.quit()
-        return
-
     rows = []
     for tr in table.find_all("tr"):
         cells = [td.get_text(strip=True) for td in tr.find_all(["td", "th"])]
         if cells:
             rows.append(cells)
 
-    df = pd.DataFrame(rows[1:], columns=rows[0])
-    csv_path = f"archives/csv/epex_FR_{delivery_date}.csv"
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    print(f"📊 CSV enregistré : {csv_path}")
+    if len(rows) < 2:
+        print("⚠️ Aucun contenu exploitable trouvé dans le tableau.")
+    else:
+        df = pd.DataFrame(rows[1:], columns=rows[0])
+        csv_path = f"archives/csv/epex_FR_{delivery_date}.csv"
+        df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+        print(f"📊 Fichier CSV enregistré : {csv_path} ({len(df)} lignes)")
 
     driver.quit()
 
 if __name__ == "__main__":
     fetch_epex_prices()
-
 
 
 
