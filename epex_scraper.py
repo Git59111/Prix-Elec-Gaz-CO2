@@ -2,12 +2,13 @@ import datetime
 import os
 import pandas as pd
 import time
-from selenium import webdriver
+import undetected_chromedriver as uc
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
+
 
 def fetch_epex_prices():
     trading_date = datetime.date.today().strftime("%Y-%m-%d")
@@ -16,6 +17,7 @@ def fetch_epex_prices():
     os.makedirs("archives/html", exist_ok=True)
     os.makedirs("archives/csv", exist_ok=True)
 
+    # ⚙️ Options Chrome (headless)
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
@@ -26,8 +28,8 @@ def fetch_epex_prices():
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
     )
 
-    print("🌐 Lancement de Chrome (headless)...")
-    driver = webdriver.Chrome(options=options)
+    print("🌐 Lancement de Chrome via undetected-chromedriver...")
+    driver = uc.Chrome(options=options)
     driver.get("https://www.epexspot.com/en/market-results")
 
     wait = WebDriverWait(driver, 25)
@@ -42,7 +44,6 @@ def fetch_epex_prices():
 
     # 2️⃣ Attendre que les filtres soient disponibles
     try:
-        # Le conteneur principal des filtres
         wait.until(EC.presence_of_element_located((By.ID, "md_filters_wrapper")))
         print("✅ Bloc de filtres détecté.")
     except Exception:
@@ -56,7 +57,11 @@ def fetch_epex_prices():
 
     # 4️⃣ Clic sur “See Results” pour charger les prix
     try:
-        see_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")))
+        see_button = wait.until(
+            EC.element_to_be_clickable(
+                (By.CSS_SELECTOR, ".btn.btn-primary-outline.btn-full.btn-see-results")
+            )
+        )
         driver.execute_script("arguments[0].click();", see_button)
         print("🔎 Recherche des résultats lancée.")
     except Exception as e:
@@ -103,9 +108,9 @@ def fetch_epex_prices():
 
     driver.quit()
 
+
 if __name__ == "__main__":
     fetch_epex_prices()
-
 
 
 '''
