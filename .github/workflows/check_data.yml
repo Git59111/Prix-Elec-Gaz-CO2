@@ -1,12 +1,11 @@
 name: "🔍 Vérification données EPEX"
 
 on:
-  workflow_dispatch:  # ✅ permet le lancement manuel depuis l'interface Actions
-  workflow_run:       # ✅ se déclenche automatiquement après l'extraction
+  workflow_dispatch:  # ✅ permet le lancement manuel depuis GitHub
+  workflow_run:       # ✅ déclenché automatiquement après l'extraction
     workflows: ["Extract EPEX data from HTML"]
     types:
       - completed
-
 
 jobs:
   check-data:
@@ -28,7 +27,6 @@ jobs:
           pip install pandas openpyxl
 
       - name: 🔎 Vérification du dernier jour d'électricité
-        id: check
         run: |
           echo "🧠 Lancement de la vérification des données..."
           python check_data_completeness.py
@@ -52,4 +50,3 @@ Le workflow de vérification a échoué car le dernier jour d'électricité cont
               title,
               body
             });
-
