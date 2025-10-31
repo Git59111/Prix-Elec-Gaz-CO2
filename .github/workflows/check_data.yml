@@ -1,0 +1,27 @@
+name: Vérification des données EPEX / Gaz / CO2
+
+on:
+  workflow_run:
+    workflows: ["extract data from epex html"]
+    types:
+      - completed
+
+jobs:
+  check-data:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: pip install pandas openpyxl
+
+      - name: Run data completeness check
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: python check_data_completeness.py
