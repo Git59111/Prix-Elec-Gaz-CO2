@@ -1,4 +1,4 @@
-name: "🔍 Vérification données EPEX"
+name: Vérification données EPEX
 
 on:
   workflow_dispatch:  # ✅ permet le lancement manuel depuis GitHub
@@ -38,8 +38,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const title = "❌ Données manquantes — Vérification EPEX échouée";
-            const body = `
-Le workflow de vérification a échoué car le dernier jour d'électricité contient 24 valeurs vides ou '-'.
+            const body = "Le workflow de vérification a échoué car le dernier jour d'électricité contient 24 valeurs vides ou '-'."
 
 🧾 Consulte le log du workflow pour plus de détails :
 👉 https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
