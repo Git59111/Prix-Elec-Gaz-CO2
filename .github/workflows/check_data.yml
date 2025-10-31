@@ -1,14 +1,16 @@
-name: Vérification des données EPEX / Gaz / CO2
+name: Check Excel Data
 
 on:
   workflow_run:
-    workflows: ["extract data from epex html"]
+    workflows: ["Extract data from EPEX HTML"]   # déclenchement auto après l'autre workflow
     types:
       - completed
+  workflow_dispatch:                              # déclenchement manuel possible
 
 jobs:
-  check-data:
+  fetch:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -20,8 +22,18 @@ jobs:
       - name: Install dependencies
         run: pip install pandas openpyxl
 
-      - name: Run data completeness check
-        env:
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-        run: python check_data_completeness.py
+      - name: Check Excel Data
+        run: python check_excel.py                # ton script de vérification Excel
+
+      - name: Send email if missing data
+        if: failure()  # s'exécute seulement si le script check_excel.py renvoie une erreur (sys.exit(1))
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USER }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          from: ${{ secrets.SMTP_USER }}
+          to: "GitHub59111@gmail.com"
+          subject: "[ALERTE] Données manquantes dans EPEX Excel"
+          body: "Des valeurs manquent dans le fichier Excel (électricité, gaz ou CO2). Consulte le log GitHub Actions pour le détail."
