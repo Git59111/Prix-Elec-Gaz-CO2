@@ -1,11 +1,12 @@
 name: 🔍 Vérification données EPEX
 
 on:
-  workflow_run:
-    workflows: ["Extract EPEX data from HTML"]  # se déclenche après ton extraction
+  workflow_dispatch:  # ✅ permet le lancement manuel depuis l'interface Actions
+  workflow_run:       # ✅ se déclenche automatiquement après l'extraction
+    workflows: ["Extract EPEX data from HTML"]
     types:
       - completed
-  workflow_dispatch:  # permet le lancement manuel depuis GitHub Actions
+
 
 jobs:
   check-data:
