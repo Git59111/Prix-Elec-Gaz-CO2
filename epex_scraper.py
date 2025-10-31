@@ -1,6 +1,94 @@
 import datetime
 import os
 import time
+import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def fetch_epex_prices():
+    # 📅 Dates (trading = aujourd’hui, livraison = demain)
+    trading_date = datetime.date.today().strftime("%Y-%m-%d")
+    delivery_date = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    os.makedirs("archives/html", exist_ok=True)
+
+    # 🚀 Lancer Chrome headless pour accepter le disclaimer
+    print("🌐 Lancement de Chrome headless…")
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36")
+
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 20)
+    driver.get("https://www.epexspot.com/en/market-results")
+
+    # ✅ Accepter le disclaimer si présent
+    try:
+        button = wait.until(EC.element_to_be_clickable((By.ID, "edit-acceptationbutton")))
+        button.click()
+        print("✅ Disclaimer accepté.")
+        time.sleep(2)
+    except Exception:
+        print("⚠️ Aucun bouton d’acceptation trouvé (probablement déjà validé).")
+
+    # 🔑 Récupérer les cookies de session
+    cookies = driver.get_cookies()
+    driver.quit()
+
+    session = requests.Session()
+    for c in cookies:
+        session.cookies.set(c["name"], c["value"])
+
+    # 🔗 URL API EPEX
+    api_url = (
+        f"https://www.epexspot.com/marketdata/auction-table?"
+        f"modality=Auction&sub_modality=DayAhead&auction=MRC&"
+        f"market_area=FR&delivery_date={delivery_date}&product=60"
+    )
+    print(f"🔗 URL API utilisée : {api_url}")
+
+    # ⚙️ En-têtes réalistes
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/140.0.0.0 Safari/537.36",
+        "Referer": "https://www.epexspot.com/en/market-results",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    }
+
+    # 📡 Requête API avec cookie
+    print("📡 Requête vers l’API EPEX…")
+    response = session.get(api_url, headers=headers, timeout=30)
+    print(f"📶 Statut HTTP : {response.status_code}")
+
+    html_path = f"archives/html/epex_FR_{delivery_date}.html"
+
+    if response.status_code == 200 and "<table" in response.text:
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(response.text)
+        print(f"✅ Tableau sauvegardé : {html_path}")
+    else:
+        # Sauvegarder pour diagnostic
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(response.text)
+        print(f"⚠️ Contenu inattendu sauvegardé pour analyse : {html_path}")
+        raise SystemExit(1)
+
+    print("🏁 Fin du script sans erreur.")
+
+if __name__ == "__main__":
+    fetch_epex_prices()
+'''
+JSP A TESTER 
+import datetime
+import os
+import time
 import sys
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -101,7 +189,7 @@ def fetch_epex_prices():
 if __name__ == "__main__":
     fetch_epex_prices()
 
-'''
+
 FOCNTIONNE, ESQIVE LE BLOQUEUR MAIS NE TROUVE PAS LES DONNEES
 import datetime
 import os
