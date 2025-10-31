@@ -5,7 +5,7 @@ on:
     workflows: ["Extract EPEX data from HTML"]
     types:
       - completed
-  workflow_dispatch:  # permet le lancement manuel
+  workflow_dispatch:
 
 jobs:
   check-data:
@@ -23,42 +23,24 @@ jobs:
 
       - name: 📦 Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install pandas openpyxl
 
-      - name: 🔎 Run data completeness check
-        id: check
-        run: |
-          echo "🧠 Lancement de la vérification du fichier Excel..."
-          python check_data_completeness.py > result.log 2>&1 || echo "1" > failed.txt
-          echo "🔍 Contenu du log :"
-          cat result.log || echo "⚠️ Aucun log généré."
+      - name: 🔎 Run completeness check
+        run: python check_data_completeness.py
 
-     
-      - name: 🧾 Créer une issue GitHub si données manquantes
-        if: always()
-        uses: actions/github-script@v7
+      - name: 📧 Send email report
+        uses: dawidd6/action-send-mail@v3
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const path = './result.log';
-            let body = '### 🔍 Rapport de vérification EPEX / Gaz / CO2\n\n';
-            if (fs.existsSync(path)) {
-              body += fs.readFileSync(path, 'utf8');
-            } else {
-              body += '⚠️ Aucun fichier `result.log` trouvé.';
-            }
-
-            // Vérifie s'il y a des données manquantes
-            if (body.includes('Données manquantes') || fs.existsSync('./failed.txt')) {
-              await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                title: "[ALERTE] Données manquantes EPEX / Gaz / CO2",
-                body: body
-              });
-              console.log("✅ Issue GitHub créée pour signaler les données manquantes.");
-            } else {
-              console.log("✅ Aucune donnée manquante détectée — pas d’issue créée.");
-            }
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: "GitHub59111@gmail.com"
+          password: "Bouchain07"
+          from: "GitHub Actions <GitHub59111@gmail.com>"
+          to: "GitHub59111@gmail.com"
+          subject: "[RAPPORT] Vérification données EPEX / Gaz / CO2"
+          body: |
+            Bonjour 👋,
+            Voici le rapport automatique de vérification :
+            ${{ steps.check.outputs.body || '' }}
+            Consulte le log GitHub Actions pour plus de détails.
+          attachments: missing_report.txt
