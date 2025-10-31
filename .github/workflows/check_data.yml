@@ -1,4 +1,4 @@
-name: Check Data EPEX
+name: ⚠️ Alerte – Prix ELEC non disponibles aujourd’hui
 
 on:
   workflow_dispatch:        # manual trigger
