@@ -1,8 +1,8 @@
-name: "Vérification données EPEX"
+name: Check Data EPEX
 
 on:
-  workflow_dispatch:    # Permet le lancement manuel
-  workflow_run:         # Se déclenche automatiquement après l'extraction
+  workflow_dispatch:        # manual trigger
+  workflow_run:             # automatic trigger after extraction
     workflows: ["Extract EPEX data from HTML"]
     types:
       - completed
@@ -26,27 +26,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas openpyxl
 
-      - name: Vérification du dernier jour d'electricite
+      - name: Run data check
+        id: check
         run: |
-          echo "Lancement de la vérification des données..."
+          echo "Running Excel data verification..."
           python check_data_completeness.py
 
-      - name: Creer une issue si donnees manquantes
+      - name: Create issue if data missing
         if: failure()
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const title = "Echec Verification EPEX - Donnees manquantes";
-            const body = `
-Le workflow de verification a echoue car le dernier jour d'electricite contient 24 valeurs vides ou '-'.
-
-Consulte le log du workflow pour plus de details :
-https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
-`;
+            const title = "Data Check Failed - Missing Electricity Data";
+            const body = [
+              "The EPEX data verification workflow failed.",
+              "",
+              "The last electricity day column contains 24 empty or '-' values.",
+              "",
+              "Check the workflow logs for more details:",
+              "https://github.com/" + context.repo.owner + "/" + context.repo.repo + "/actions/runs/" + context.runId
+            ].join("\n");
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: title,
               body: body
             });
+
