@@ -1,6 +1,111 @@
 import datetime
 import os
 import time
+import sys
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+def fetch_epex_prices():
+    # 📅 Date de livraison = demain
+    delivery_date = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # 📂 Dossier de sortie
+    os.makedirs("archives/html", exist_ok=True)
+    html_path = f"archives/html/epex_FR_{delivery_date}.html"
+
+    # ⚙️ Configuration de Chrome headless
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
+    )
+
+    print("🌐 Lancement de Chrome (headless)...")
+    try:
+        driver = webdriver.Chrome(options=options)
+    except Exception as e:
+        print(f"❌ Erreur au lancement de Chrome : {e}")
+        sys.exit(1)
+
+    driver.get("https://www.epexspot.com/en/market-results")
+    wait = WebDriverWait(driver, 30)
+
+    # Étape 1️⃣ : Accepter le disclaimer si présent
+    try:
+        btn = wait.until(EC.element_to_be_clickable((By.ID, "edit-acceptationbutton")))
+        btn.click()
+        print("✅ Disclaimer accepté.")
+    except Exception:
+        print("⚠️ Bouton d’acceptation non trouvé (probablement déjà validé).")
+
+    # Étape 2️⃣ : Attendre que les filtres soient chargés
+    try:
+        wait.until(EC.presence_of_element_located((By.ID, "md_filters_wrapper")))
+        print("✅ Filtres détectés.")
+    except Exception:
+        print("❌ Les filtres n’ont pas pu être chargés.")
+        driver.quit()
+        sys.exit(1)
+
+    # Étape 3️⃣ : Clic sur “See results” (robuste)
+    try:
+        see_buttons = driver.find_elements(
+            By.XPATH,
+            "//button[contains(., 'See results') or contains(., 'Voir les résultats')]"
+        )
+        if see_buttons:
+            driver.execute_script("arguments[0].click();", see_buttons[0])
+            print("🔎 Clic sur 'See results' effectué (via XPath).")
+        else:
+            print("⚠️ Aucun bouton 'See results' trouvé, tentative JS...")
+            driver.execute_script("""
+                const btn = [...document.querySelectorAll('button')].find(b =>
+                    b.textContent.includes('See results') || b.textContent.includes('Voir les résultats')
+                );
+                if (btn) btn.click();
+            """)
+        time.sleep(4)
+    except Exception as e:
+        print(f"❌ Erreur lors du clic sur 'See results' : {e}")
+
+    # Étape 4️⃣ : Attendre le tableau
+    try:
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+        print("✅ Tableau détecté.")
+    except Exception:
+        print("⚠️ Tableau non détecté après 20s, sauvegarde du HTML actuel.")
+        time.sleep(5)
+
+    # Étape 5️⃣ : Sauvegarde du HTML complet
+    try:
+        html = driver.page_source
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"📄 Page sauvegardée : {html_path}")
+    except Exception as e:
+        print(f"❌ Erreur lors de la sauvegarde : {e}")
+        driver.quit()
+        sys.exit(1)
+
+    driver.quit()
+    print("✅ Fin du script sans erreur.")
+
+if __name__ == "__main__":
+    fetch_epex_prices()
+
+'''
+FOCNTIONNE, ESQIVE LE BLOQUEUR MAIS NE TROUVE PAS LES DONNEES
+import datetime
+import os
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -75,7 +180,7 @@ if __name__ == "__main__":
     fetch_epex_prices()
 
     
-'''
+
 V1
 
 import datetime
