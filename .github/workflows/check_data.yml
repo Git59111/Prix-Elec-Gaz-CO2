@@ -1,4 +1,4 @@
-name: 🔍 Vérification données EPEX
+name: "🔍 Vérification données EPEX"
 
 on:
   workflow_dispatch:  # ✅ permet le lancement manuel depuis l'interface Actions
