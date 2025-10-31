@@ -1,6 +1,80 @@
 import os
 import datetime
 import pandas as pd
+
+EXCEL_PATH = "data/epexspot_prices.xlsx"
+REPORT_PATH = "missing_report.txt"
+
+def check_data():
+    """Analyse les feuilles Excel pour détecter les données manquantes."""
+    if not os.path.exists(EXCEL_PATH):
+        with open(REPORT_PATH, "w", encoding="utf-8") as f:
+            f.write(f"❌ Fichier introuvable : {EXCEL_PATH}\n")
+        return 1
+
+    sheets = pd.read_excel(EXCEL_PATH, sheet_name=None)
+    missing_info = []
+
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    tomorrow = today + datetime.timedelta(days=1)
+
+    def fmt_date(date):
+        return date.strftime("%d-%b").lower().replace("may", "mai").replace("oct", "oct.")
+
+    tomorrow_label = fmt_date(tomorrow)
+    yesterday_label = fmt_date(yesterday)
+
+    missing_info.append(f"🗓️ Vérification des colonnes : {yesterday_label} (Gaz/CO2), {tomorrow_label} (Elec)")
+
+    # === 1️⃣ Électricité ===
+    if "Prix Spot" in sheets:
+        df_elec = sheets["Prix Spot"]
+        if tomorrow_label in df_elec.columns:
+            missing_cells = df_elec[df_elec[tomorrow_label].isin(["-", None, ""])]
+            if not missing_cells.empty:
+                hours = ", ".join(missing_cells["Heure"].astype(str))
+                missing_info.append(f"⚡ Électricité ({tomorrow_label}) : {len(missing_cells)} cases vides ({hours})")
+        else:
+            missing_info.append(f"⚡ Aucune colonne '{tomorrow_label}' trouvée dans 'Prix Spot'.")
+
+    # === 2️⃣ Gaz ===
+    if "Gaz" in sheets:
+        df_gaz = sheets["Gaz"]
+        if yesterday.strftime("%Y-%m-%d") not in df_gaz["Date"].astype(str).values:
+            missing_info.append(f"🔥 Aucune donnée Gaz pour {yesterday}.")
+        else:
+            val = df_gaz.loc[df_gaz["Date"] == yesterday.strftime("%Y-%m-%d"), "Last Price"].values[0]
+            if str(val).strip() in ["-", "nan", ""]:
+                missing_info.append(f"🔥 Gaz ({yesterday}) : valeur vide.")
+
+    # === 3️⃣ CO2 ===
+    if "CO2" in sheets:
+        df_co2 = sheets["CO2"]
+        if yesterday.strftime("%Y-%m-%d") not in df_co2["Date"].astype(str).values:
+            missing_info.append(f"🌍 Aucune donnée CO2 pour {yesterday}.")
+        else:
+            val = df_co2.loc[df_co2["Date"] == yesterday.strftime("%Y-%m-%d"), "Last Price"].values[0]
+            if str(val).strip() in ["-", "nan", ""]:
+                missing_info.append(f"🌍 CO2 ({yesterday}) : valeur vide.")
+
+    # === Sauvegarde du rapport ===
+    with open(REPORT_PATH, "w", encoding="utf-8") as f:
+        if len(missing_info) == 1:
+            f.write("✅ Toutes les données sont présentes.\n")
+        else:
+            f.write("\n".join(missing_info) + "\n")
+
+    print("📄 Rapport généré :", REPORT_PATH)
+    return 0
+
+if __name__ == "__main__":
+    check_data()
+
+'''
+import os
+import datetime
+import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -101,3 +175,4 @@ def check_data():
 
 if __name__ == "__main__":
     check_data()
+'''
