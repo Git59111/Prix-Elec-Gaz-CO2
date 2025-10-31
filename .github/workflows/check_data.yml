@@ -30,7 +30,7 @@ jobs:
         id: check
         run: |
           echo "🧠 Lancement de la vérification des données..."
-          python scripts/check_data_completeness.py
+          python check_data_completeness.py
 
       - name: 📢 Créer une issue si données manquantes
         if: failure()
@@ -38,12 +38,17 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const title = "⚠️ Données manquantes — Vérification EPEX échouée";
-            const body = "Le workflow de vérification a échoué car le dernier jour d'électricité contient 24 valeurs vides ou '-'.\n\n👉 Consulte le log du workflow pour plus de détails.";
+            const title = "❌ Données manquantes — Vérification EPEX échouée";
+            const body = `
+Le workflow de vérification a échoué car le dernier jour d'électricité contient 24 valeurs vides ou '-'.
+
+🧾 Consulte le log du workflow pour plus de détails :
+👉 https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}
+`;
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title,
               body
             });
+
