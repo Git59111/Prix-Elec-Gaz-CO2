@@ -34,6 +34,7 @@ jobs:
           echo "🔍 Contenu du log :"
           cat result.log || echo "⚠️ Aucun log généré."
 
+     
       - name: 🧾 Créer une issue GitHub si données manquantes
         if: always()
         uses: actions/github-script@v7
@@ -51,7 +52,7 @@ jobs:
 
             // Vérifie s'il y a des données manquantes
             if (body.includes('Données manquantes') || fs.existsSync('./failed.txt')) {
-              await github.issues.create({
+              await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title: "[ALERTE] Données manquantes EPEX / Gaz / CO2",
