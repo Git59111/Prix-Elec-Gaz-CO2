@@ -1,56 +1,75 @@
 import datetime
 import os
-import requests
-import sys
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 def fetch_epex_prices():
     delivery_date = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
-    os.makedirs("archives/html", exist_ok=True)
 
-    url = (
-        f"https://www.epexspot.com/marketdata/auction-table"
-        f"?modality=Auction&sub_modality=DayAhead"
-        f"&auction=MRC&market_area=FR"
-        f"&delivery_date={delivery_date}&product=60"
+    os.makedirs("archives/html", exist_ok=True)
+    html_path = f"archives/html/epex_FR_{delivery_date}.html"
+
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/140.0.0.0 Safari/537.36"
     )
 
-    print(f"🔗 URL API utilisée : {url}")
+    print("🌐 Lancement de Chrome (headless)...")
+    driver = webdriver.Chrome(options=options)
+    driver.get("https://www.epexspot.com/en/market-results")
 
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/140.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://www.epexspot.com/en/market-results",
-    }
+    wait = WebDriverWait(driver, 30)
 
+    # Étape 1 : accepter le disclaimer
     try:
-        print("📡 Requête vers l’API EPEX…")
-        r = requests.get(url, headers=headers, timeout=30)
-        print(f"📶 Statut HTTP : {r.status_code}")
+        btn = wait.until(EC.element_to_be_clickable((By.ID, "edit-acceptationbutton")))
+        btn.click()
+        print("✅ Disclaimer accepté.")
+    except Exception:
+        print("⚠️ Bouton d’acceptation non trouvé (probablement déjà validé).")
 
-        if r.status_code != 200:
-            print("❌ Erreur HTTP, accès refusé.")
-            sys.exit(1)
+    # Étape 2 : attendre le bloc de filtres
+    try:
+        wait.until(EC.presence_of_element_located((By.ID, "md_filters_wrapper")))
+        print("✅ Filtres chargés.")
+    except Exception:
+        print("❌ Les filtres n’ont pas pu être chargés, tentative de rechargement...")
+        driver.refresh()
+        time.sleep(8)
 
-        # Vérifie si le contenu est du JSON
-        if "json" not in r.headers.get("Content-Type", ""):
-            print("⚠️ Contenu inattendu :")
-            print(r.text[:300])
-            sys.exit(1)
+    # Étape 3 : cliquer sur “See results”
+    try:
+        see_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.btn-see-results")))
+        driver.execute_script("arguments[0].click();", see_btn)
+        print("🔎 Clic sur 'See results' effectué.")
+    except Exception:
+        print("⚠️ Bouton 'See results' introuvable, on continue quand même...")
 
-        html_path = f"archives/html/epex_FR_{delivery_date}.json"
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(r.text)
+    # Étape 4 : attendre que le tableau apparaisse
+    try:
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+        print("✅ Tableau détecté.")
+    except Exception:
+        print("⚠️ Tableau non détecté après 20s. Sauvegarde du HTML actuel pour diagnostic.")
 
-        print(f"✅ Données sauvegardées : {html_path}")
+    # Étape 5 : sauvegarde du HTML complet
+    html = driver.page_source
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"📄 Page sauvegardée : {html_path}")
 
-    except Exception as e:
-        print(f"❌ Erreur : {e}")
-        sys.exit(1)
+    driver.quit()
+
 
 if __name__ == "__main__":
     fetch_epex_prices()
