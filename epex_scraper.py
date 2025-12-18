@@ -1,6 +1,90 @@
 import datetime
 import os
 import time
+
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
+def fetch_epex_prices():
+    # 📅 Dates
+    trading_date = datetime.date.today().strftime("%Y-%m-%d")
+    delivery_date = (datetime.date.today() + datetime.timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # 📁 Dossier d’archive
+    archive_dir = "archives/html"
+    os.makedirs(archive_dir, exist_ok=True)
+
+    html_path = f"{archive_dir}/epex_FR_{delivery_date}.html"
+
+    print("🌐 Lancement de Chrome headless (Selenium only)…")
+
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--lang=en-US")
+
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 30)
+
+    try:
+        # 🧭 Accès direct à la page des résultats Day-Ahead FR
+        url = (
+            "https://www.epexspot.com/en/market-results?"
+            "market_area=FR&auction=MRC&"
+            f"delivery_date={delivery_date}&"
+            "modality=Auction&sub_modality=DayAhead"
+        )
+
+        print(f"🔗 URL visitée : {url}")
+        driver.get(url)
+
+        # ✅ Accepter le disclaimer si présent
+        try:
+            button = wait.until(
+                EC.element_to_be_clickable((By.ID, "edit-acceptationbutton"))
+            )
+            button.click()
+            print("✅ Disclaimer accepté.")
+            time.sleep(3)
+        except Exception:
+            print("ℹ️ Disclaimer déjà accepté ou absent.")
+
+        # ⏳ Attente explicite du tableau de résultats
+        print("⏳ Attente du tableau des prix…")
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+        time.sleep(2)  # sécurité JS
+
+        # 📄 Sauvegarde du HTML complet rendu
+        html = driver.page_source
+
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        print(f"✅ HTML EPEX sauvegardé : {html_path}")
+
+    except Exception as e:
+        print("❌ Erreur lors du scraping EPEX :", e)
+
+    finally:
+        driver.quit()
+        print("🏁 Fin du scraper EPEX (Selenium).")
+
+
+if __name__ == "__main__":
+    fetch_epex_prices()
+
+
+'''
+
+import datetime
+import os
+import time
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -90,9 +174,6 @@ def fetch_epex_prices():
 if __name__ == "__main__":
     fetch_epex_prices()
 
-
-
-'''
 
 import datetime
 import os
