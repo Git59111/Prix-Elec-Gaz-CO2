@@ -1,3 +1,4 @@
+'''
 name: 🚨 Données EPEX non disponibles aujourd’hui
 
 on:
@@ -30,3 +31,4 @@ jobs:
         run: |
           echo "🧠 Lancement de la vérification des données..."
           python check_data_completeness.py
+'''
